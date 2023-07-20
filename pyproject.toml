@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "legbreak"
+version = "0.1.0"
+description = "Provide adult swim schedules API"
+authors = ["Frederick Brunn"]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+pandas = "^1.2.4"
+pytest = "^6.2.3"
+requests = "^2.0"
+uvicorn = "^0.22.0"
+fastapi = "^0.95.2"
+beautifulsoup4 = "^4.12.2"
+xspf-lib = "^0.3.4"
+ffprobe-python = "^1.0.3"
+
+[tool.poetry.dev-dependencies]
+pytest = "^6.2.3"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
