@@ -24,47 +24,49 @@ show_library = dict()
 schedule_library = dict()
 xspf_library = dict()
 
-def preload_bump_info(bump_library_path):
-    if(bump_library_path in bump_library):
-        return
-    bumps = []  
-    count = 0
-    for bump in os.listdir(bump_library_path):
-        if bump.endswith(".mp4") or bump.endswith(".mkv") or bump.endswith(".mov") or bump.endswith(".avi"):
-            full_path = os.path.join(bump_library_path, bump)
-            duration = get_length(full_path)
-            bumps.append(
-            {
-                "type": "bump",
-                "name": str(bump),
-                "path": full_path,
-                "duration": duration
-            } )
-            count = count + 1
-            if(count % 100 == 0):
-                print(count)
-    bump_library[bump_library_path] = bumps
+def preload_bump_info(bump_library_path_list):
+    for bump_library_path in bump_library_path_list:
+        if(bump_library_path in bump_library):
+            continue
+        bumps = []  
+        count = 0
+        for bump in os.listdir(bump_library_path):
+            if bump.endswith(".mp4") or bump.endswith(".mkv") or bump.endswith(".mov") or bump.endswith(".avi"):
+                full_path = os.path.join(bump_library_path, bump)
+                duration = get_length(full_path)
+                bumps.append(
+                {
+                    "type": "bump",
+                    "name": str(bump),
+                    "path": full_path,
+                    "duration": duration
+                } )
+                count = count + 1
+                if(count % 100 == 0):
+                    print(count)
+        bump_library[bump_library_path] = bumps
 
-def preload_commercial_info(commercial_library_path):
-    if(commercial_library_path in commercial_library):
-        return
-    commercials = []
-    count = 0
-    for commercial in os.listdir(commercial_library_path):
-        if commercial.endswith(".mp4") or commercial.endswith(".mkv") or commercial.endswith(".mov") or commercial.endswith(".avi"):
-            full_path = os.path.join(commercial_library_path, commercial)
-            duration = get_length(full_path)
-            commercials.append(
-            {
-                "type": "commercial",
-                "name": str(commercial),
-                "path": full_path,
-                "duration": duration
-            } )
-            count = count + 1
-            if(count % 100 == 0):
-                print(count)
-    commercial_library[commercial_library_path] = commercials
+def preload_commercial_info(commercial_library_path_list):
+    for commercial_library_path in commercial_library_path_list:
+        if(commercial_library_path in commercial_library):
+            continue
+        commercials = []
+        count = 0
+        for commercial in os.listdir(commercial_library_path):
+            if commercial.endswith(".mp4") or commercial.endswith(".mkv") or commercial.endswith(".mov") or commercial.endswith(".avi"):
+                full_path = os.path.join(commercial_library_path, commercial)
+                duration = get_length(full_path)
+                commercials.append(
+                {
+                    "type": "commercial",
+                    "name": str(commercial),
+                    "path": full_path,
+                    "duration": duration
+                } )
+                count = count + 1
+                if(count % 100 == 0):
+                    print(count)
+        commercial_library[commercial_library_path] = commercials
 
 def preload_show_info(show_library_path):
     show_library = dict()
@@ -99,8 +101,8 @@ def generate_schedule(channel_name, repeat: int = 1):
     if channel_name not in channels_library:
         return None
     channel = channels_library[channel_name]
-    commercials_path = channel["commercial_library_path"]
-    bumps_path = channel["bump_library_path"]
+    commercials_paths = channel["commercial_library_paths"]
+    bumps_paths = channel["bump_library_paths"]
     for i in range(0, repeat):
         for time_slot in channel["block_ordering"]:
             commercials = []
@@ -108,10 +110,10 @@ def generate_schedule(channel_name, repeat: int = 1):
             while commercial_length > 0:
                 commercial = None
                 while(commercial is None or commercial == commercials[:1]):
+                    commercials_path = random.choice(commercials_paths)
                     commercial = select_movie_file(commercial_library[commercials_path])
                 commercials.append(commercial)
                 commercial_length = commercial_length - commercial["duration"]
-            intro_bump = select_movie_file(bump_library[bumps_path])
             if time_slot == "*":
                 possible_show_selections = list(show_library)
             else:
@@ -125,8 +127,12 @@ def generate_schedule(channel_name, repeat: int = 1):
             show = []
             while len(show) == 0:
                 show = random.choice(possible_show_selections)
-            episode = select_movie_file(show_library[show])
+                
+            bumps_path = random.choice(bumps_paths)
+            intro_bump = select_movie_file(bump_library[bumps_path])
             outro_bump = select_movie_file(bump_library[bumps_path])
+
+            episode = select_movie_file(show_library[show])
             # Assemble show block
             for commercial in commercials:
                 schedule.append(commercial)
