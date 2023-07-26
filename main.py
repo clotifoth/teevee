@@ -19,7 +19,7 @@ app = FastAPI()
 
 commercial_library = dict()
 bump_library = dict()
-show_library = dict()
+show_library = None
 
 schedule_library = dict()
 xspf_library = dict()
@@ -31,7 +31,7 @@ def preload_bump_info(bump_library_path_list):
         bumps = []  
         count = 0
         for bump in os.listdir(bump_library_path):
-            if bump.endswith(".mp4") or bump.endswith(".mkv") or bump.endswith(".mov") or bump.endswith(".avi"):
+            if bump.endswith(".mp4") or bump.endswith(".mkv") or bump.endswith(".mov") or bump.endswith(".avi") or bump.endswith(".webm"):
                 full_path = os.path.join(bump_library_path, bump)
                 duration = get_length(full_path)
                 bumps.append(
@@ -53,7 +53,7 @@ def preload_commercial_info(commercial_library_path_list):
         commercials = []
         count = 0
         for commercial in os.listdir(commercial_library_path):
-            if commercial.endswith(".mp4") or commercial.endswith(".mkv") or commercial.endswith(".mov") or commercial.endswith(".avi"):
+            if commercial.endswith(".mp4") or commercial.endswith(".mkv") or commercial.endswith(".mov") or commercial.endswith(".avi") or commercial.endswith(".webm"):
                 full_path = os.path.join(commercial_library_path, commercial)
                 duration = get_length(full_path)
                 commercials.append(
@@ -74,7 +74,7 @@ def preload_show_info(show_library_path):
     for show_season_folder in os.listdir(show_library_path):
         show_library[show_season_folder] = []
         for show in os.listdir(os.path.join(show_library_path, show_season_folder)):
-            if show.endswith(".mp4") or show.endswith(".mkv") or show.endswith(".mov") or show.endswith(".avi"):
+            if show.endswith(".mp4") or show.endswith(".mkv") or show.endswith(".mov") or show.endswith(".avi") or show.endswith(".webm"):
                 full_path = os.path.join(show_library_path, show_season_folder, show)
                 duration = get_length(full_path)
                 show_library[show_season_folder].append(
@@ -106,7 +106,10 @@ def generate_schedule(channel_name, repeat: int = 1):
     for i in range(0, repeat):
         for time_slot in channel["block_ordering"]:
             commercials = []
-            commercial_length = channel["segment_types"][time_slot]["commercials_length"]
+            if time_slot == "*":
+                commercial_length = 150
+            else:
+                commercial_length = channel["segment_types"][time_slot]["commercials_length"]
             while commercial_length > 0:
                 commercial = None
                 while(commercial is None or commercial == commercials[:1]):
@@ -143,17 +146,32 @@ def generate_schedule(channel_name, repeat: int = 1):
 
 def get_length(input_video):
     result = subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', input_video], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    return float(result.stdout.decode().split("\r\n")[0])
+    try:
+        result = float(result.stdout.decode().split("\r\n")[0])
+        return result
+    except Exception as e:
+        try:
+            if(result == ''):
+                return 0
+            result = float(result.stdout.decode().split("\r\n")[1])
+            return result
+        except Exception as e:
+            print(e)
+            return 0
 
 def render_schedule(schedule):
     tracks = []
     for track in schedule:
         path = track["path"]
+        if track["duration"] is None:
+            duration = 0
+        else:
+            duration = track["duration"]*1000
         track = xspf_lib.Track(location=track["path"],
                                 title=".",
                                 creator="[schmedult schmim]",
                                 album=track["show"] if "show" in track else track["type"],
-                                duration=track["duration"]*1000,
+                                duration=duration,
                                 annotation=track["name"],
                                 info="",
                                 image="")
@@ -180,7 +198,7 @@ async def respond_with_schedule(channel_name: str, schedule_id: int = None):
     schedule_visualization_df = pd.DataFrame(schedule, columns=["type","show","name","path","duration"])
     schedule_visualization_df['Elapsed Time'] = schedule_visualization_df['duration'].cumsum()
 
-    schedule_visualization_df['Elapsed Time'] = pd.to_datetime(schedule_visualization_df['duration'].cumsum().sub(schedule_visualization_df.duration), unit='s').dt.strftime("%H:%M:%S")
+    schedule_visualization_df['Elapsed Time'] = pd.to_datetime(schedule_visualization_df['duration'].cumsum().sub(schedule_visualization_df.duration), unit='s').dt.strftime("Day %d %H:%M:%S")
     schedule_visualization_df.drop(schedule_visualization_df[schedule_visualization_df['type'] == "commercial"].index, inplace = True)
     highlighted_rows = schedule_visualization_df['type'].isin(['commercial','bump']).map({
         True: 'font-size: 8px; font-style: italic;',
@@ -240,13 +258,12 @@ def load_channels(channels_path: str):
             with open(full_path) as file:
                 channel = json.load(file)
             channels_library[channel_name] = channel
-            preload_commercial_info(channel["commercial_library_path"])
-            preload_bump_info(channel["bump_library_path"])
+            preload_commercial_info(channel["commercial_library_paths"])
+            preload_bump_info(channel["bump_library_paths"])
     return channels_library
 
-bump_library_path = "H:\\legbreak-content\\bumps"
-commercial_library_path = "H:\\legbreak-content\\commercials"
-show_library_path = "H:\\legbreak-content\\shows"
+
+show_library_path = "E:\\legbreak-content\\shows"
 
 cached_library_path = "./cache/"
 bump_cache = os.path.join(cached_library_path, "bump_library.json")
@@ -283,17 +300,17 @@ try:
         with(open(shows_cache) as fp):
             show_library = json.load(fp)
         for show_season_folder in show_library:
+            print(show_season_folder)
             show_season = show_library[show_season_folder]
             for show in show_season:
                 #show = show_season[file]
                 if(not os.path.isfile(show["path"])):
                     logger.info(f"Cache invalided because {show['path']} not found - redoing bumps cache")
-                    show_library = preload_show_info(show_library_path)
+                    show_library = None
+                    break
 except FileNotFoundError as e:
     pass
 
-if not show_library:
-    show_library = preload_show_info(show_library_path)
 channels_path = "./channels/"
 channels_library = load_channels(channels_path)
 
@@ -301,6 +318,9 @@ with open(bump_cache, mode="w+") as bump_file:
     json.dump(bump_library, bump_file)
 with open(commercials_cache, mode="w+") as commercial_file:
     json.dump(commercial_library, commercial_file)
+
+if show_library is None:
+    show_library = preload_show_info(show_library_path)
 with open(shows_cache, mode="w+") as show_file:
     json.dump(show_library, show_file)
 
