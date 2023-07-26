@@ -14,6 +14,7 @@ fastapi = "^0.95.2"
 beautifulsoup4 = "^4.12.2"
 xspf-lib = "^0.3.4"
 ffprobe-python = "^1.0.3"
+Jinja2 = "^3.1.2"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.3"
